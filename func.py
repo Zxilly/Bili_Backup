@@ -21,3 +21,5 @@ def info_written(path,info,filename='info'):
     with open(path+filename+'.json','w+',encoding='UTF-8') as f:
         f.write(json.dumps(info,ensure_ascii=False))
         #print(f.read())
+
+def download_media():

@@ -1,30 +1,14 @@
 import json
+import math
+import os
+import time
 from datetime import datetime
 
-import requests
-from PIL import Image
 import qrcode
-import os
+import requests
+import hashlib
 
-import data
-import func
-
-import io
-import time
-import math
-
-class Media(object):
-    def __init__(self,fav,bid,data):
-        self.bid = bid
-        self.fav = fav
-        self.data = data
-
-class Page(object):
-    def __init__(self,fav,bid,cid,data):
-        self.fav = fav
-        self.bid = bid
-        self.cid = cid
-        self.data = data
+from func import *
 
 class User(object):
     def __init__(self):
@@ -107,13 +91,37 @@ class User(object):
             media_num = one_fav_folder['media_count']
             fav_folder_name = one_fav_folder['title']
             page_max = math.ceil(media_num / 20)
-            print(fav_folder_name)
-            self.overall_info[fav_folder_name] = self.get_media_info(page_max,id)
-        print(json.dumps(self.overall_info,ensure_ascii=False))
+            # print(fav_folder_name)
+            self.overall_info[fav_folder_name] = self.get_media_info(page_max, id)
+        self.fav_differ()
 
-    def get_media_info(self,page_max,id):
+    def fav_differ(self):
+        self.differ_dict = {}
+        try:
+            with open('data/hist/info.json') as f:
+                self.hist_differ_dict = json.loads(f.read())
+        except:
+                self.hist_differ_dict = {}
+        # print(self.overall_info)
+        for fav in self.overall_info:
+            for media_key in self.overall_info[fav]: # media_key == bvid
+                for p_key in self.overall_info[fav][media_key]['p']: # p_key == cid
+                    hash = hashlib.md5((media_key+str(p_key)).encode()).hexdigest()
+                    p_info = {
+                        'bvid':media_key,
+                        'cid':p_key
+                    }
+                    self.differ_dict[hash] = p_info
+        self.added_fav_hash = list(set(self.differ_dict.keys()).difference(set(self.hist_differ_dict.keys())))
+        self.removed_fav_hash = list(set(self.hist_differ_dict.keys()).difference(set(self.differ_dict.keys())))
+        for one in self.added_fav_hash:
+
+
+
+
+    def get_media_info(self, page_max, id):
         url = 'https://api.bilibili.com/x/v3/fav/resource/list'
-        overall_media = {} #整个文件夹中所有的视频
+        overall_media = {}  # 整个文件夹中所有的视频
         for page_num in range(1, page_max + 1):
             get_param = {
                 'media_id': id,
@@ -122,16 +130,15 @@ class User(object):
             }
             req = self.main_session.get(url=url, params=get_param)
             media_infos = json.loads(req.content.decode())['data']['medias']
-            for media in media_infos: # 单个视频
+            for media in media_infos:  # 单个视频
                 bid = media['bvid']
                 overall_media[bid] = {
-                    'data':media,
-                    'p':self.get_p_info(bid)
+                    'data': media,
+                    'p': self.get_p_info(bid)
                 }
         return overall_media
 
-
-    def get_p_info(self,bid):
+    def get_p_info(self, bid):
         url = 'https://api.bilibili.com/x/player/pagelist'
         p_info = {}
         req = self.main_session.get(url=url, params={'bvid': bid})
@@ -141,14 +148,6 @@ class User(object):
             cid = one_p['cid']
             p_info[cid] = one_p
         return p_info
-
-
-
-
-
-
-
-
 
 
 """
@@ -166,12 +165,3 @@ class User(object):
                     print('chunk {} get'.format(a))
                     a+=1
 """
-
-
-
-
-
-
-
-
-

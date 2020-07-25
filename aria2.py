@@ -7,4 +7,3 @@ aria2 = aria2p.API(
         secret=""
     )
 )
-
