@@ -13,12 +13,25 @@ import io
 import time
 import math
 
+class Media(object):
+    def __init__(self,fav,bid,data):
+        self.bid = bid
+        self.fav = fav
+        self.data = data
+
+class Page(object):
+    def __init__(self,fav,bid,cid,data):
+        self.fav = fav
+        self.bid = bid
+        self.cid = cid
+        self.data = data
 
 class User(object):
     def __init__(self):
         self.main_session = requests.session()
         self.check_cred()
         self.get_user_info()
+        self.overall_info = {}
 
     def check_cred(self):
         try:
@@ -51,7 +64,7 @@ class User(object):
             'oauthKey': oauthKey,
         }
         req = json.loads(self.main_session.post(url=url, data=post_form).content.decode())
-        print(req)
+        # print(req)
         if (req['status'] == False):
             time.sleep(2)
             self.login_polling(oauthKey=oauthKey)
@@ -84,26 +97,54 @@ class User(object):
         # print(req.content.decode())
         data = json.loads(req.content.decode())
         fav_folder_list = data['data'][0]['mediaListResponse']['list']
+        # print(json.dumps(fav_folder_list,ensure_ascii=False))
+        # exit(0)
         self.get_fav_info(fav_folder_list)
 
     def get_fav_info(self, fav_folder_list):
-        url = 'https://api.bilibili.com/x/v3/fav/resource/list'
         for one_fav_folder in fav_folder_list:
             id = one_fav_folder['id']
             media_num = one_fav_folder['media_count']
             fav_folder_name = one_fav_folder['title']
             page_max = math.ceil(media_num / 20)
-            for page_num in range(1, page_max + 1):
-                get_param = {
-                    'media_id': id,
-                    'pn': page_num,
-                    'ps': 20
+            print(fav_folder_name)
+            self.overall_info[fav_folder_name] = self.get_media_info(page_max,id)
+        print(json.dumps(self.overall_info,ensure_ascii=False))
+
+    def get_media_info(self,page_max,id):
+        url = 'https://api.bilibili.com/x/v3/fav/resource/list'
+        overall_media = {} #整个文件夹中所有的视频
+        for page_num in range(1, page_max + 1):
+            get_param = {
+                'media_id': id,
+                'pn': page_num,
+                'ps': 20
+            }
+            req = self.main_session.get(url=url, params=get_param)
+            media_infos = json.loads(req.content.decode())['data']['medias']
+            for media in media_infos: # 单个视频
+                bid = media['bvid']
+                overall_media[bid] = {
+                    'data':media,
+                    'p':self.get_p_info(bid)
                 }
-                req = self.main_session.get(url=url, params=get_param)
-                media_infos = json.loads(req.content.decode())['data']['medias']
-                for media in media_infos:
-                    func.info_written(func.path_generator(favname=fav_folder_name,bid=media['bvid']),info=media)
-                    a = Media(bid=media['bvid'], fav=fav_folder_name,session=self.main_session)
+        return overall_media
+
+
+    def get_p_info(self,bid):
+        url = 'https://api.bilibili.com/x/player/pagelist'
+        p_info = {}
+        req = self.main_session.get(url=url, params={'bvid': bid})
+        data = json.loads(req.content.decode())['data']
+        # print(data)
+        for one_p in data:
+            cid = one_p['cid']
+            p_info[cid] = one_p
+        return p_info
+
+
+
+
 
 
 
