@@ -1,6 +1,4 @@
-import json
 import math
-import os
 import time
 from datetime import datetime
 
@@ -9,6 +7,16 @@ import requests
 import hashlib
 
 from func import *
+import hashlib
+import math
+import time
+from datetime import datetime
+
+import qrcode
+import requests
+
+from func import *
+
 
 class User(object):
     def __init__(self):
@@ -85,40 +93,6 @@ class User(object):
         # exit(0)
         self.get_fav_info(fav_folder_list)
 
-    def get_fav_info(self, fav_folder_list):
-        for one_fav_folder in fav_folder_list:
-            id = one_fav_folder['id']
-            media_num = one_fav_folder['media_count']
-            fav_folder_name = one_fav_folder['title']
-            page_max = math.ceil(media_num / 20)
-            # print(fav_folder_name)
-            self.overall_info[fav_folder_name] = self.get_media_info(page_max, id)
-        self.fav_differ()
-
-    def fav_differ(self):
-        self.differ_dict = {}
-        try:
-            with open('data/hist/info.json') as f:
-                self.hist_differ_dict = json.loads(f.read())
-        except:
-                self.hist_differ_dict = {}
-        # print(self.overall_info)
-        for fav in self.overall_info:
-            for media_key in self.overall_info[fav]: # media_key == bvid
-                for p_key in self.overall_info[fav][media_key]['p']: # p_key == cid
-                    hash = hashlib.md5((media_key+str(p_key)).encode()).hexdigest()
-                    p_info = {
-                        'bvid':media_key,
-                        'cid':p_key
-                    }
-                    self.differ_dict[hash] = p_info
-        self.added_fav_hash = list(set(self.differ_dict.keys()).difference(set(self.hist_differ_dict.keys())))
-        self.removed_fav_hash = list(set(self.hist_differ_dict.keys()).difference(set(self.differ_dict.keys())))
-        for one in self.added_fav_hash:
-
-
-
-
     def get_media_info(self, page_max, id):
         url = 'https://api.bilibili.com/x/v3/fav/resource/list'
         overall_media = {}  # 整个文件夹中所有的视频
@@ -148,6 +122,57 @@ class User(object):
             cid = one_p['cid']
             p_info[cid] = one_p
         return p_info
+
+    def get_fav_info(self, fav_folder_list):
+        for one_fav_folder in fav_folder_list:
+            id = one_fav_folder['id']
+            media_num = one_fav_folder['media_count']
+            fav_folder_name = one_fav_folder['title']
+            page_max = math.ceil(media_num / 20)
+            # print(fav_folder_name)
+            self.overall_info[fav_folder_name] = self.get_media_info(page_max, id)
+        self.fav_differ()
+
+    def fav_differ(self):
+        self.differ_dict = {}
+        try:
+            with open('data/hist/info.json') as f:
+                self.hist_differ_dict = json.loads(f.read())
+        except:
+            self.hist_differ_dict = {}
+        # print(self.overall_info)
+        for fav in self.overall_info:
+            for media_key in self.overall_info[fav]:  # media_key == bvid
+                for p_key in self.overall_info[fav][media_key]['p']:  # p_key == cid
+                    hash = hashlib.md5((media_key + str(p_key)).encode()).hexdigest()
+                    p_info = {
+                        'bvid': media_key,
+                        'cid': p_key
+                    }
+                    self.differ_dict[hash] = p_info
+        self.added_fav_hash = list(set(self.differ_dict.keys()).difference(set(self.hist_differ_dict.keys())))
+        self.removed_fav_hash = list(set(self.hist_differ_dict.keys()).difference(set(self.differ_dict.keys())))
+        for one in self.added_fav_hash:
+            bvid = self.differ_dict[one]['bvid']
+            cid = self.differ_dict[one]['cid']
+            self.media_download(bid=bvid,cid=cid)
+
+    def media_download(self,bid,cid):
+        url = 'https://api.bilibili.com/x/player/playurl'
+        get_params = {
+            'bvid': bid,
+            'cid': cid,
+            'qn': 120,
+            'fourk': 1
+        }
+        req = self.main_session.get(url=url, params=get_params)
+        # print(req.content.decode()) #TODO:获取最高视频质量
+        data = json.loads(req.content.decode())
+        durl_list = data['data']['durl']
+        if (len(durl_list) == 1):
+            self.single_dl(durl_list)
+
+
 
 
 """
