@@ -16,6 +16,7 @@ import qrcode
 import requests
 
 from func import *
+from aria2 import *
 
 
 class User(object):
@@ -24,6 +25,11 @@ class User(object):
         self.check_cred()
         self.get_user_info()
         self.overall_info = {}
+        self.failure_name = []
+        aria2.set_global_options({
+            'referer': 'https://www.bilibili.com/',
+            'max-connection-per-server': 16,
+        })
 
     def check_cred(self):
         try:
@@ -155,7 +161,12 @@ class User(object):
         for one in self.added_fav_hash:
             bvid = self.differ_dict[one]['bvid']
             cid = self.differ_dict[one]['cid']
+            print('bid:{},cid:{} started'.format(bvid,cid))
             self.media_download(bid=bvid,cid=cid)
+        with open('tmp_json/failure.json','w+') as f:
+            f.write(json.dumps(self.failure_name,ensure_ascii=False))
+        with open('data/hist/info.json','w+') as f:
+            f.write(json.dumps(self.differ_dict))
 
     def media_download(self,bid,cid):
         url = 'https://api.bilibili.com/x/player/playurl'
@@ -170,8 +181,42 @@ class User(object):
         data = json.loads(req.content.decode())
         durl_list = data['data']['durl']
         if (len(durl_list) == 1):
-            self.single_dl(durl_list)
+            self.single_dl(durl_list,path_generator(bid=bid,cid=cid))
+        else:
+            self.multi_dl(durl_list,path_generator(bid=bid,cid=cid))
+            #if(bid not in self.multipart_BV):
+            #    self.multipart_BV.append(bid)
 
+    def single_dl(self, url_list,path):
+        url = url_list[0]['url']
+        # print('start')
+        # aria2.add_uris([url], options={'dir': path})
+        self.dl([url],path)
+
+    def multi_dl(self, url_list, path):
+        urls = []
+        for url in url_list:
+            urls.append(url['url'])
+        self.dl(urls,path)
+
+
+    def dl(self,urls,path):
+        dl_list = []
+        while (True):
+            if (len(aria2.get_downloads()) <= 13):
+                aria2.add_uris(urls, options={'dir': path})
+                break
+            else:
+                for one_dl in aria2.get_downloads():
+                    if(one_dl.is_complete):
+                        aria2.remove([one_dl])
+                    elif(one_dl.has_failed):
+                        if(aria2.resume([one_dl])):
+                           time.sleep(1)
+                           if(one_dl.has_failed):
+                                self.failure_name.append(one_dl.name)
+                                aria2.remove([one_dl])
+                time.sleep(5)
 
 
 
